@@ -1,0 +1,119 @@
+#include<stdint.h>
+#include<stdbool.h>
+#include"inc/hw_memmap.h"
+#include"inc/hw_types.h"
+#include"driverlib/debug.h"
+#include"driverlib/sysctl.h"
+#include"driverlib/adc.h"
+#define TARGET_IS_BLIZZARD_RB1
+
+//by adding ROM to our driverlib calls we reduce the size of .text by nearly 50% - lab5.map
+#include "driverlib/rom.h"
+
+int main(void)
+{
+    /* create an array that will be used for storing the data read from the ADC FIFO.
+     * It must be as large as the FIFO for the sequencer in use.  We will be using sequencer 1 which has a FIFO depth of 4.
+     * If another sequencer was used with a smaller or deeper FIFO, then the array size would have to be changed.
+     * For instance, sequencer 0 has a depth of 8.
+     * */
+    uint32_t ui32ADC0Value[4];
+
+    /* define variables for calculating the temperature from the sensor data.
+     * The first variable is for storing the average of the temperature.
+     * The remaining variables are used to store the temperature values for Celsius and Fahrenheit.
+     * All are declared as 'volatile' so that each variable cannot be optimized out by the compiler
+     * and will be available to the 'Expression' or 'Local' window(s) at run-time.
+     * */
+    volatile uint32_t ui32TempAvg;
+    volatile uint32_t ui32TempValueC;
+    volatile uint32_t ui32TempValueF;
+
+    /*
+     * Set up the system clock to run at 40MHz
+     * */
+    ROM_SysCtlClockSet(SYSCTL_SYSDIV_5|SYSCTL_USE_PLL|SYSCTL_OSC_MAIN|SYSCTL_XTAL_16MHZ);
+
+    /*
+     * enable the ADC0 peripheral
+     * */
+    ROM_SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
+
+    /*For this lab, we’ll simply allow the ADC12 to run at its default rate of 1Msps.
+     * Reprogramming the sampling rate is left as an exercise for the student.
+     * */
+    /*
+     * The last parameter in the APIcallis the number of samples to be averaged. This number can be 2, 4, 8, 16, 32 or 64.
+     * Our selection means that each sample in the ADC FIFO will be the result of 64 measurements being averaged together.
+     * We will then average four of those samples together in our code for a total of 256.
+     * */
+    ROM_ADCHardwareOversampleConfigure(ADC0_BASE, 64);
+
+    /*
+     * configure the ADC sequencer. We want to use ADC0, sample sequencer 1, we want the processor to trigger
+     * the sequence and we want to use the highest priority.
+     * */
+    ROM_ADCSequenceConfigure(ADC0_BASE, 1, ADC_TRIGGER_PROCESSOR, 0);
+
+    /*
+     * configure all four steps in the ADC sequencer. Configure steps 0 -2 on sequencer 1 to sample the temperature sensor (ADC_CTL_TS).
+     * In this example, our code will average all four samples of temperature sensor data on sequencer 1 to calculate the temperature,
+     * so all four sequencer steps will measure the temperature sensor.
+     * */
+    ROM_ADCSequenceStepConfigure(ADC0_BASE, 1, 0, ADC_CTL_TS);
+    ROM_ADCSequenceStepConfigure(ADC0_BASE, 1, 1, ADC_CTL_TS);
+    ROM_ADCSequenceStepConfigure(ADC0_BASE, 1, 2, ADC_CTL_TS);
+
+    /*
+     * The final sequencer step requires a couple of extra settings. Sample the temperature sensor (ADC_CTL_TS)and configure the
+     *  interrupt flag (ADC_CTL_IE)to be set when the sample is done. Tell the ADC logic that this is the last conversion on
+     *  sequencer 1 (ADC_CTL_END)
+     * */
+    ROM_ADCSequenceStepConfigure(ADC0_BASE,1,3,ADC_CTL_TS|ADC_CTL_IE|ADC_CTL_END);
+
+    /*
+     * enable ADC sequencer 1.
+     * */
+    ROM_ADCSequenceEnable(ADC0_BASE, 1);
+
+    // super-loop
+    while(1){
+        /*
+         * read the value of the temperature sensor and calculate the temperature endlessly
+         * The indication that the ADC conversion process is complete will be the ADC interrupt
+         * status flag. It’s always good programming practice to make sure that the flag is cleared
+         *  before writing code that depends on it.
+         * */
+        ROM_ADCIntClear(ADC0_BASE, 1);
+
+        // trigger the ADC conversion with software
+        ROM_ADCProcessorTrigger(ADC0_BASE, 1);
+
+        /*
+         * wait for the conversion to complete.
+         * Obviously, a better way to do this would be to use an interrupt, rather than waste CPU cycles waiting,
+         * but that exercise is left for the student.
+         * */
+        while(!ROM_ADCIntStatus(ADC0_BASE, 1, false)){
+
+        }
+
+        // read the ADC value from the ADC Sample Sequencer 1 FIFO.
+        ROM_ADCSequenceDataGet(ADC0_BASE, 1, ui32ADC0Value);
+
+        //Calculate the average of the temperature sensor data
+        ui32TempAvg = (ui32ADC0Value[0] + ui32ADC0Value[1] + ui32ADC0Value[2] + ui32ADC0Value[3] + 2)/4;
+
+        /*
+         * convert to Celsius
+         * We need to multiply everything by 10 to stay within the precision needed.
+         * The divide by 10 at the end is needed to get the right answer. VREFP –VREFN is Vdd or 3.3 volts.
+         *  We’ll multiply it by 10, and then 75 to get 2475
+         * */
+        ui32TempValueC = (1475 -((2475 * ui32TempAvg)) / 4096)/10;
+        //to f
+        ui32TempValueF = ((ui32TempValueC * 9) + 160) / 5;
+
+
+    }
+}

@@ -1,0 +1,14 @@
+LaunchTargetManager/org.eclipse.launchbar.core.launchTargetType.local,Local/arch=x86_64
+LaunchTargetManager/org.eclipse.launchbar.core.launchTargetType.local,Local/name=Local
+LaunchTargetManager/org.eclipse.launchbar.core.launchTargetType.local,Local/os=win32
+configDescList=org.eclipse.launchbar.core.descriptorType.default\:lab5,org.eclipse.launchbar.core.descriptorType.default\:lab5_workshop,org.eclipse.launchbar.core.descriptorType.default\:lab12,org.eclipse.launchbar.core.descriptorType.default\:lab12_workshop,org.eclipse.launchbar.core.descriptorType.default\:adc,org.eclipse.launchbar.core.descriptorType.default\:lab4,org.eclipse.launchbar.core.descriptorType.default\:lab4_workshop
+eclipse.preferences.version=1
+org.eclipse.launchbar.core.descriptorType.default\:40kHz_PWM_test/activeLaunchMode=run
+org.eclipse.launchbar.core.descriptorType.default\:40kHz_PWM_test/activeLaunchTarget=org.eclipse.launchbar.core.launchTargetType.local\:Local
+org.eclipse.launchbar.core.descriptorType.default\:adc/activeLaunchMode=debug
+org.eclipse.launchbar.core.descriptorType.default\:adc/activeLaunchTarget=org.eclipse.launchbar.core.launchTargetType.local\:Local
+org.eclipse.launchbar.core.descriptorType.default\:lab12/activeLaunchMode=run
+org.eclipse.launchbar.core.descriptorType.default\:lab12/activeLaunchTarget=org.eclipse.launchbar.core.launchTargetType.local\:Local
+org.eclipse.launchbar.core.descriptorType.default\:lab5/activeLaunchMode=run
+org.eclipse.launchbar.core.descriptorType.default\:lab5/activeLaunchTarget=org.eclipse.launchbar.core.launchTargetType.local\:Local
+org.eclipse.launchbar.core.descriptorType.default\:lab5_workshop/activeLaunchMode=debug

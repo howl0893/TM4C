@@ -1,0 +1,109 @@
+#include<stdint.h>
+#include<stdbool.h>
+#include"inc/hw_memmap.h"
+#include"inc/hw_types.h"
+#include"driverlib/debug.h"
+#include"driverlib/sysctl.h"
+#include"driverlib/adc.h"
+
+// MEANS TARGET IS TM4C
+#define TARGET_IS_BLIZZARD_RB1
+
+//by adding ROM to our driverlib calls we reduce the size of .text by nearly 50% - lab5.map
+#include "driverlib/rom.h"
+
+int main(void)
+{
+    /* create an array that will be used for storing the data read from the ADC FIFO.
+     * It must be as large as the FIFO for the sequencer in use.  We will be using sequencer 1 which has a FIFO depth of 4.
+     * If another sequencer was used with a smaller or deeper FIFO, then the array size would have to be changed.
+     * For instance, sequencer 0 has a depth of 8.
+     */
+    uint32_t ui32ADC0_0Value[4];
+    uint32_t ui32ADC0_1Value[1];
+
+    volatile uint32_t ui32ADCAvg;
+
+    /*
+     * Set up the system clock to run at 40MHz
+     * PLL clock = 400 MHz / 2 (default divider) / 5 (SYSDIV_5) = 40 MHZ
+     */
+    ROM_SysCtlClockSet(SYSCTL_SYSDIV_5|SYSCTL_USE_PLL|SYSCTL_OSC_MAIN|SYSCTL_XTAL_16MHZ);
+
+    /*
+     * enable the ADC0 peripheral
+     */
+    ROM_SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
+
+    /*
+     * The last parameter in the API call is the number of samples to be averaged. This number can be 2, 4, 8, 16, 32 or 64.
+     * Our selection means that each sample in the ADC FIFO will be the result of 64 measurements being averaged together.
+     * We will then average four of those samples together in our code for a total of 256.
+     */
+//    ROM_ADCHardwareOversampleConfigure(ADC0_BASE, 64);
+
+    /*
+     * configure the ADC sequencer. We want to use ADC0, sample sequencer 1, we want the processor to trigger
+     * the sequence and we want to use the highest priority. sample sequencer 3 too because we want 5 ADC channels
+     */
+    ROM_ADCSequenceConfigure(ADC0_BASE, 1, ADC_TRIGGER_PROCESSOR, 0);
+    ROM_ADCSequenceConfigure(ADC0_BASE, 3, ADC_TRIGGER_PROCESSOR, 0);
+
+    /*
+     * configure all four steps in the ADC sequencer. Configure steps 0 -2 on sequencer 1 to sample the temperature sensor (ADC_CTL_TS).
+     * In this example, our code will average all four samples of temperature sensor data on sequencer 1 to calculate the temperature,
+     * so all four sequencer steps will measure the temperature sensor.
+     */
+    ROM_ADCSequenceStepConfigure(ADC0_BASE, 0, 0, ADC_CTL_CH0); // AIN0 = PE3
+    ROM_ADCSequenceStepConfigure(ADC0_BASE, 0, 1, ADC_CTL_CH1); // AIN1 = PE2
+    ROM_ADCSequenceStepConfigure(ADC0_BASE, 0, 2, ADC_CTL_CH2); // AIN2 = PE1
+    ROM_ADCSequenceStepConfigure(ADC0_BASE, 0, 3, ADC_CTL_CH3|ADC_CTL_IE|ADC_CTL_END); // AIN3 = PE0
+
+    /*
+     * The final sequencer step requires a couple of extra settings. Sample the temperature sensor (ADC_CTL_TS)and configure the
+     *  interrupt flag (ADC_CTL_IE)to be set when the sample is done. Tell the ADC logic that this is the last conversion on
+     *  sequencer 1 (ADC_CTL_END)
+     * */
+    ROM_ADCSequenceStepConfigure(ADC0_BASE,1,0,ADC_CTL_CH4|ADC_CTL_IE|ADC_CTL_END); //AIN4 = PD3
+
+    /*
+     * enable ADC sequencer 1.
+     * */
+    ROM_ADCSequenceEnable(ADC0_BASE, 0);
+    ROM_ADCSequenceEnable(ADC0_BASE, 1);
+
+    // super-loop
+    while(1){
+        /*
+         * Read the value of ADC channel
+         * The indication that the ADC conversion process is complete will be the ADC interrupt
+         * status flag. It’s always good programming practice to make sure that the flag is cleared
+         *  before writing code that depends on it.
+         */
+        ROM_ADCIntClear(ADC0_BASE, 0);
+        ROM_ADCIntClear(ADC0_BASE, 1);
+
+        // trigger the ADC conversion with software
+        ROM_ADCProcessorTrigger(ADC0_BASE, 0);
+        ROM_ADCProcessorTrigger(ADC0_BASE, 1);
+
+        /*
+         * wait for the conversion to complete.
+         * Obviously, a better way to do this would be to use an interrupt, rather than waste CPU cycles waiting,
+         * but that exercise is left for the student.
+         * */
+        while(!ROM_ADCIntStatus(ADC0_BASE, 0, false)){
+
+        }
+        while(!ROM_ADCIntStatus(ADC0_BASE, 1, false)){
+
+        }
+
+        // read the ADC value from the ADC Sample Sequencer 0 FIFO.
+        ROM_ADCSequenceDataGet(ADC0_BASE, 0, ui32ADC0_0Value);
+        ROM_ADCSequenceDataGet(ADC0_BASE, 1, ui32ADC0_1Value);
+
+        //Calculate the average of the ADC data
+        ui32ADCAvg = (ui32ADC0_0Value[0] + ui32ADC0_0Value[1] + ui32ADC0_0Value[2] + ui32ADC0_0Value[3] + ui32ADC0_1Value[0])/4;
+    }
+}
